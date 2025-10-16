@@ -39,6 +39,7 @@ npm run dev
 The dashboard expects contract addresses for a deployed `QuantumEntangler` and `QuantumQubit` instance on BSC (or any fork that
 exposes the PancakeSwap v2 router at the canonical address).
 
+
 ## Deployment flow
 
 1. Deploy `QuantumQubit`, capture its address and ensure you set dev/superposition wallets.
