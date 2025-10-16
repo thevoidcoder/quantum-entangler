@@ -163,7 +163,6 @@ contract QuantumQubit is ERC20, Ownable {
 
     function burnFromEntangler(uint256 amount) external {
         require(msg.sender == entangler, "Not entangler");
-<<<<<<< HEAD
         _burn(entangler, amount);
     }
 
@@ -175,14 +174,6 @@ contract QuantumQubit is ERC20, Ownable {
 
         if (amount == 0) {
             super._update(from, to, 0);
-=======
-        _burn(address(this), amount);
-    }
-
-    function _transfer(address from, address to, uint256 amount) internal override {
-        if (amount == 0) {
-            super._transfer(from, to, 0);
->>>>>>> main
             return;
         }
 
@@ -192,35 +183,23 @@ contract QuantumQubit is ERC20, Ownable {
             takeFee = false;
         }
 
-<<<<<<< HEAD
         uint256 transferAmount = amount;
 
-=======
->>>>>>> main
         if (takeFee) {
             uint256 totalFee = _getTotalFee(from, to);
             if (totalFee > 0) {
                 uint256 feeAmount = (amount * totalFee) / FEE_DENOMINATOR;
                 uint256 burnAmount = (amount * burnShare) / FEE_DENOMINATOR;
 
-<<<<<<< HEAD
                 transferAmount = amount - feeAmount;
 
                 if (burnAmount > 0) {
                     super._update(from, DEAD, burnAmount);
-=======
-                if (burnAmount > 0) {
-                    super._transfer(from, DEAD, burnAmount);
->>>>>>> main
                 }
 
                 uint256 contractPortion = feeAmount - burnAmount;
                 if (contractPortion > 0) {
-<<<<<<< HEAD
                     super._update(from, address(this), contractPortion);
-=======
-                    super._transfer(from, address(this), contractPortion);
->>>>>>> main
 
                     uint256 allocationTotal = totalFee - burnShare;
                     if (allocationTotal > 0) {
@@ -233,19 +212,10 @@ contract QuantumQubit is ERC20, Ownable {
                         tokensForDev += devTokensShare;
                     }
                 }
-<<<<<<< HEAD
             }
         }
 
         super._update(from, to, transferAmount);
-=======
-
-                amount -= feeAmount;
-            }
-        }
-
-        super._transfer(from, to, amount);
->>>>>>> main
 
         uint256 contractBalance = balanceOf(address(this));
         bool canSwap = contractBalance >= swapTokensAtAmount;

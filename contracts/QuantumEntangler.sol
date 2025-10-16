@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.22;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -189,7 +189,9 @@ contract QuantumEntangler is Ownable, ReentrancyGuard {
         totalStakedQbit -= amount;
         qbit.burnFromEntangler(amount);
 
-        uint256 bnbValue = calculateQubitSell(amount);
+        // Convert QBIT token amount (1e18 per entangler) to qubits (86400 per entangler)
+        uint256 qubits = (amount * QUBITS_TO_HATCH_1_ENTANGLER) / 1e18;
+        uint256 bnbValue = calculateQubitSell(qubits);
         uint256 penalty;
         if (getQubitsSinceLastAction(msg.sender) > 0) {
             penalty = (bnbValue * DECAY_PENALTY_BPS) / BPS;
@@ -201,7 +203,7 @@ contract QuantumEntangler is Ownable, ReentrancyGuard {
             payable(msg.sender).transfer(payout);
         }
 
-        marketQubits += amount / 5;
+        marketQubits += qubits / 5;
 
         emit Disentangle(msg.sender, amount, payout, penalty);
     }
