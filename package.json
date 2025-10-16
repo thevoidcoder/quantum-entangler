@@ -1,12 +1,27 @@
 {
   "name": "quantum-entangler",
   "version": "1.0.0",
-  "description": "",
+  "description": "Quantum Entangler DeFi game and QBIT token",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "compile": "hardhat compile",
+    "test": "hardhat test"
   },
-  "keywords": [],
+  "keywords": [
+    "defi",
+    "solidity",
+    "hardhat",
+    "ponzi",
+    "qubit"
+  ],
   "author": "",
-  "license": "ISC"
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "dotenv": "^17.2.3",
+    "hardhat": "^2.22.2"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.2"
+  }
 }
