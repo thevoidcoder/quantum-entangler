@@ -26,6 +26,10 @@ contract QuantumEntangler is Ownable, ReentrancyGuard {
     uint256 private constant COMMUNITY_FEE_BPS = 300; // 3%
     uint256 private constant DECAY_PENALTY_BPS = 300; // 3%
     uint256 private constant SUPERPOSITION_BURN_BPS = 2_000; // 20%
+    uint256 private constant TIME_BONUS_THRESHOLD = 7 days; // Bonus threshold
+    uint256 private constant TIME_BONUS_BPS = 1_000; // 10% bonus for holding > 7 days
+    uint256 private constant COMPOUND_BONUS_BPS = 500; // 5% bonus on compound
+    uint256 private constant BUYBACK_BPS = 5_000; // 50% of entangler taxes used for buyback
 
     QuantumQubit public immutable qbit;
 
@@ -36,6 +40,8 @@ contract QuantumEntangler is Ownable, ReentrancyGuard {
         uint256 stakedQbit;
         address referrer;
         bool referralBoostClaimed;
+        uint256 totalCompounds;
+        uint256 firstEntangleTime;
     }
 
     mapping(address => UserInfo) private users;
@@ -44,19 +50,24 @@ contract QuantumEntangler is Ownable, ReentrancyGuard {
     uint256 public totalStakedQbit;
     uint256 public marketQubits;
     uint256 public superpositionReserve; // BNB earmarked for the superposition pool
+    uint256 public treasuryReserve; // BNB for buybacks and price support
+    uint256 public totalBuybacks;
+    uint256 public totalCompounds;
 
     address public devWallet;
     address public communityWallet;
     address public superpositionWallet;
 
     event Entangle(address indexed user, uint256 bnbUsed, uint256 qubitsBought, uint256 newEntanglers);
-    event Compound(address indexed user, uint256 qubitsUsed, uint256 newEntanglers);
+    event Compound(address indexed user, uint256 qubitsUsed, uint256 newEntanglers, uint256 bonusApplied);
     event Collapse(address indexed user, uint256 qubitsSold, uint256 netPayout, uint256 referralPaid, uint256 superpositionAccrued);
     event Disentangle(address indexed user, uint256 qbitAmount, uint256 payout, uint256 penalty);
     event Stake(address indexed user, uint256 amount);
     event ClaimTokens(address indexed user, uint256 amount);
     event BreakEntanglement(address indexed user);
     event SuperpositionProcessed(uint256 bnbSent, uint256 tokensBurned);
+    event BuybackExecuted(uint256 bnbSpent, uint256 tokensBought);
+    event TimeBonusAwarded(address indexed user, uint256 bonusAmount);
 
     error ZeroAddress();
     error NothingToProcess();
@@ -95,6 +106,12 @@ contract QuantumEntangler is Ownable, ReentrancyGuard {
         uint256 qubitsBought = calculateQubitBuy(amount, contractBalanceBefore);
 
         UserInfo storage user = users[msg.sender];
+        
+        // Set first entangle time for time-based bonuses
+        if (user.firstEntangleTime == 0) {
+            user.firstEntangleTime = block.timestamp;
+        }
+        
         user.claimedQubits += qubitsBought;
 
         if (!user.referralBoostClaimed && user.referrer != address(0)) {
@@ -117,7 +134,37 @@ contract QuantumEntangler is Ownable, ReentrancyGuard {
     }
 
     function compoundQubits() external nonReentrant {
-        _compound(msg.sender);
+        UserInfo storage user = users[msg.sender];
+        uint256 qubits = getMyQubits(msg.sender);
+        
+        // Apply compound bonus
+        uint256 compoundBonus = (qubits * COMPOUND_BONUS_BPS) / BPS;
+        if (compoundBonus > 0) {
+            user.claimedQubits += compoundBonus;
+            qubits += compoundBonus;
+        }
+        
+        // Apply time-based bonus for long-term holders
+        if (user.firstEntangleTime > 0 && block.timestamp - user.firstEntangleTime >= TIME_BONUS_THRESHOLD) {
+            uint256 timeBonus = (qubits * TIME_BONUS_BPS) / BPS;
+            if (timeBonus > 0) {
+                user.claimedQubits += timeBonus;
+                emit TimeBonusAwarded(msg.sender, timeBonus);
+            }
+        }
+        
+        uint256 newEntanglers = _compound(msg.sender);
+        user.totalCompounds++;
+        totalCompounds++;
+        
+        uint256 mintedTokens = newEntanglers * 1e18;
+        if (mintedTokens > 0) {
+            qbit.mint(address(this), mintedTokens);
+            user.stakedQbit += mintedTokens;
+            totalStakedQbit += mintedTokens;
+        }
+        
+        emit Compound(msg.sender, qubits, newEntanglers, compoundBonus);
     }
 
     function collapseQubits() external nonReentrant {
@@ -262,6 +309,42 @@ contract QuantumEntangler is Ownable, ReentrancyGuard {
         }
     }
 
+    /**
+     * @notice Execute buyback using treasury reserve
+     * @param bnbAmount Amount of BNB to spend on buyback
+     */
+    function executeBuyback(uint256 bnbAmount) external onlyOwner nonReentrant {
+        require(bnbAmount > 0 && bnbAmount <= treasuryReserve, "Invalid amount");
+        treasuryReserve -= bnbAmount;
+        
+        // Buy QBIT tokens from the market using PancakeSwap
+        address[] memory path = new address[](2);
+        path[0] = qbit.router().WETH();
+        path[1] = address(qbit);
+        
+        uint256 balanceBefore = qbit.balanceOf(address(this));
+        
+        qbit.router().swapExactETHForTokensSupportingFeeOnTransferTokens{value: bnbAmount}(
+            0, // accept any amount of tokens
+            path,
+            address(this),
+            block.timestamp
+        );
+        
+        uint256 tokensReceived = qbit.balanceOf(address(this)) - balanceBefore;
+        totalBuybacks += tokensReceived;
+        
+        // Burn 50% of bought tokens to create deflationary pressure
+        if (tokensReceived > 0) {
+            uint256 burnAmount = tokensReceived / 2;
+            if (burnAmount > 0) {
+                qbit.burnFromEntangler(burnAmount);
+            }
+        }
+        
+        emit BuybackExecuted(bnbAmount, tokensReceived);
+    }
+
     // ------------------ Views ------------------
 
     function getUserInfo(address account)
@@ -340,7 +423,7 @@ contract QuantumEntangler is Ownable, ReentrancyGuard {
         totalEntanglers += newEntanglers;
         marketQubits += qubitsUsed / 5;
 
-        emit Compound(userAddr, qubitsUsed, newEntanglers);
+        emit Compound(userAddr, qubitsUsed, newEntanglers, 0);
     }
 
     function _linkReferrer(address userAddr, address referrer) internal {
@@ -381,5 +464,17 @@ contract QuantumEntangler is Ownable, ReentrancyGuard {
         return (PSN * bs) / (PSNH + ((PSN * rs + PSNH * rt) / rt));
     }
 
-    receive() external payable {}
+    /**
+     * @notice Receive BNB from QBIT token contract (entangler share of taxes)
+     * Routes a portion to treasury for buybacks
+     */
+    receive() external payable {
+        // When receiving BNB from QBIT contract, allocate portion to treasury for buybacks
+        if (msg.sender == address(qbit) && msg.value > 0) {
+            uint256 buybackAmount = (msg.value * BUYBACK_BPS) / BPS;
+            if (buybackAmount > 0) {
+                treasuryReserve += buybackAmount;
+            }
+        }
+    }
 }
