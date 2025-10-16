@@ -15,14 +15,30 @@ A BNB miner-style DeFi game with a quantum meme skin. The system is built around
 
 ## Development
 
-Install dependencies and compile:
+Install dependencies, compile, and run the BSC forked integration tests:
 
 ```bash
 npm install
 npx hardhat compile
+npx hardhat test
 ```
 
 > **Note:** the toolchain relies on Hardhat and OpenZeppelin Contracts 5.x.
+
+By default the Hardhat test suite boots against a mocked Pancake router/factory pair so it can run offline. Set
+`BSC_FORK_RPC=<your archive RPC>` if you want to replay the tests against a live BSC fork.
+
+To exercise the Vite-based dashboard, install the front-end dependencies and run the dev server:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The dashboard expects contract addresses for a deployed `QuantumEntangler` and `QuantumQubit` instance on BSC (or any fork that
+exposes the PancakeSwap v2 router at the canonical address).
+
 
 ## Deployment flow
 

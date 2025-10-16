@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "./QBIT.sol";
@@ -61,7 +61,7 @@ contract QuantumEntangler is Ownable, ReentrancyGuard {
     error ZeroAddress();
     error NothingToProcess();
 
-    constructor(QuantumQubit token, address dev, address community, address superposition) {
+    constructor(QuantumQubit token, address dev, address community, address superposition) Ownable(msg.sender) {
         if (address(token) == address(0) || dev == address(0) || community == address(0) || superposition == address(0)) {
             revert ZeroAddress();
         }
